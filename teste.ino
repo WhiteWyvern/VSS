@@ -168,12 +168,4 @@ void tasks_1000ms( void ) {
 
 void get_RadioEnd (char* endRadio){
   
-  if(digitalRead(A4) == LOW)
-    endRadio[0] = '1';
-  else
-    endRadio[0] = '0';
-  if(digitalRead(A5) == LOW)
-    endRadio[1] = '1';
-  else
-    endRadio[1] = '0';
 }
