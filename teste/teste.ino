@@ -118,10 +118,10 @@ void setup() {
 
 void loop() {
     
-    //tasks_10ms();                // Tarefas executadas a cada 10ms
-    //tasks_100ms();               // Tarefas executadas a cada 100ms
+    tasks_10ms();                // Tarefas executadas a cada 10ms
+    tasks_100ms();               // Tarefas executadas a cada 100ms
     tasks_1000ms();              // Tarefas executadas a cada 1000ms
-    //blinka();
+    get_volt_bat();
 
 }
 
@@ -134,9 +134,8 @@ void loop() {
  */
 void tasks_10ms( void ) {
 
-     if( (millis() - tasks.last_10ms) > 10 ){
+     if( (millis() - tasks.last_10ms) > 1 ){
         tasks.last_10ms = millis();
-
 
     }
 }
@@ -147,8 +146,7 @@ void tasks_10ms( void ) {
 void tasks_100ms( void ) {
 
     if( (millis() - tasks.last_100ms) > 100 ){
-        tasks.last_100ms = millis();
-               
+        tasks.last_100ms = millis();       
     }
 }
 
@@ -159,8 +157,6 @@ void tasks_1000ms( void ) {
 
   if( (millis() - tasks.last_1000ms) > 1000 ){
     tasks.last_1000ms = millis();
-
-     Serial.println(get_node_addr());
     }
     
 }
@@ -190,7 +186,7 @@ uint8_t get_node_addr( void ){
 }
 
 /* ****************************************************************** */
-/* Blinker ********************* ************************************ */
+/* Pisca a luz de TimeBlink em Timeblink  *************************** */
 
 void blinka (void) {
   uint32_t blinker;
@@ -207,4 +203,25 @@ void blinka (void) {
     blinker++;
   }
 
+}
+
+/* ****************************************************************** */
+/* Le a tensao da bateria ******************************************* */
+
+uint16_t get_volt_bat ( void ){
+  int32_t sensorValue = analogRead(VOLT_BAT);
+  uint32_t volt = (uint32_t)((sensorValue*1.1/1023.0)*10000.0);
+  Serial.println(volt);
+
+//    uint8_t  n   = 10;
+//    uint32_t adc =  0;
+//
+//    for (int i = 0; i < n; i++){
+//        adc += analogRead(VOLT_BAT);
+//        delayMicroseconds(100);
+//    }
+//    
+//    uint32_t volt = (uint32_t)((adc*1.1/1023.0)*1000.0);
+//    
+//    return volt;
 }
