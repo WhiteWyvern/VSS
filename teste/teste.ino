@@ -86,7 +86,7 @@ typedef union {
 /* *** Variáveis globais e instanciações ***************************** */
 
 
-TasksTCtr tasks;		    //Contagem de tempo para execução de tarefas
+TasksTCtr tasks;        //Contagem de tempo para execução de tarefas
 uint16_t count_enc_a = 0;
 uint16_t count_enc_b = 0;
 
