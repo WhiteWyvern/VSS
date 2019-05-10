@@ -4,8 +4,8 @@
 #include <RF24.h>
 #include <SPI.h>
 
-/* ****************************************************************** */
-/* *** Definições diversas ****************************************** */
+// ------------------------------------------------------------------- //
+// ------------------------ Definições diversas ---------------------- //
 
 // Descomente para inverter a rotação (somente) do Motor A
 // => Necessário com os motores montados simetricamente
@@ -14,17 +14,18 @@
 
 #define FULL_BAT        8000   // Valor em mV para bat. completamente carregada
 #define DEAD_BAT        6000   // Valor em mV para bat. esgotada ( recarregar )
+#define TimeBlink 2000         //Valor em Millisegundos em que o LED deve piscar.
 
-/* ****************************************************************** */
-/* Limitações de PWM e velocidade para uso no controlador PID ******* */
+// ------------------------------------------------------------------- //
+// --- Limitações de PWM e velocidade para uso no controlador PID ---- //
 
 #define PWM_MIN         0x0F   // PWM mín. p/ garantir movimento das duas rodas
 #define PWM_MAX         0x9F   // PWM máx. para que os motores tenham aprox. 5V
 #define SPD_MIN           50   // Vel. mín. em mm/s ( Condição: PWM > PWM_MIN )
 #define SPD_MAX          500   // Vel. máx. em mm/s ( Condição: PWM < PWM_MAX )
 
-/* ****************************************************************** */
-/* Estas são as conexões de hardware mapeadas aos pinos do Arduino ** */
+// ------------------------------------------------------------------- //
+// ---------------- DEFINES DE PINOS DO ARDUINO ---------------------- //
 
 #define LED         4      // Led conectado a uma saída digital
 
@@ -47,18 +48,13 @@
 
 #define VOLT_BAT   A7      // Tensão da bateria -> Vcc/10
 
-
 //Macros
 // Transforma caractere ascii em um número de 4 bits em hexadecimal.
 #define asc2hex(a) (((a) < 'a') ? ( (a) - '0' )  : ( ((a) - 'a')+10) )
 
-/* ****************************************************************** */
-/* Mapeamentos de teste ********************************************* */
 
-#define TimeBlink 2000    //Valor em Millisegundos.
-
-/* ******************************************************************* */
-/* Definições de estruturas de dados ( funcionais, status e controle ) */
+// ------------------------------------------------------------------- //
+// ---------------------- ESTRUTURAS DE DADOS ------------------------ //
 
 
 typedef struct {
@@ -81,8 +77,8 @@ typedef union {
 } TMotCtrl;
 
 
-/* ******************************************************************* */
-/* *** Variáveis globais e instanciações ***************************** */
+// ------------------------------------------------------------------- //
+//------------------------- VARIAVEIS GLOBAIS ------------------------ //
 
 
 TasksTCtr tasks;		    //Contagem de tempo para execução de tarefas
@@ -91,9 +87,9 @@ uint16_t count_enc_b = 0;
 
 TMotCtrl motor;
 
-/* ******************************************************************* */
-/* *** Protótipos das funções **************************************** */
-//
+// ------------------------------------------------------------------- //
+// ---------------------- SUMARIO DAS FUNCOES ------------------------ //
+
 // Obs: Este bloco não é necessário para compilação mas é útil como
 //      referência durante o processo de desenvolvimento.
 
@@ -110,8 +106,8 @@ uint32_t get_motor_status ( void );
 bool     is_motor_locked  ( uint8_t );
 uint8_t  set_pwm_max      ( void );
 
-/* ******************************************************************* */
-/* *** SETUP ********************************************************* */
+// ------------------------------------------------------------------- //
+// ---------------------------- MAIN --------------------------------- //
 
 void setup() {
 
@@ -145,21 +141,16 @@ void setup() {
 
 }
 
-
-/* ******************************************************************* */
-/* *** LOOP PRINCIPAL ************************************************ */
-
+//Main loop, o que o robo fica fazendo "pra sempre".
 void loop() {
 
 }
 
 
-/* ******************************************************************* */
-/* *** FUNÇÕES (implementações) ************************************** */
+// ------------------------------------------------------------------- //
+// ------------------------------ TASKS ------------------------------ //
 
-/* *********************************************************************
- * Tarefas que devem ser executadas em intervalos de 10ms
- */
+// Tarefas que devem ser executadas em intervalos de 10ms 
 void tasks_10ms( void ) {
 
      if( (millis() - tasks.last_10ms) > 1 ){
@@ -168,9 +159,7 @@ void tasks_10ms( void ) {
     }
 }
 
-/* *********************************************************************
- * Tarefas que devem ser executadas em intervalos de 100ms
- */
+// Tarefas que devem ser executadas em intervalos de 100ms
 void tasks_100ms( void ) {
 
     if( (millis() - tasks.last_100ms) > 100 ){
@@ -178,9 +167,7 @@ void tasks_100ms( void ) {
     }
 }
 
-/* *********************************************************************
- * Tarefas que devem ser executadas em intervalos de 1000ms
- */
+// Tarefas que devem ser executadas em intervalos de 1000ms
 void tasks_1000ms( void ) {
 
   if( (millis() - tasks.last_1000ms) > 1000 ){
@@ -189,8 +176,8 @@ void tasks_1000ms( void ) {
     
 }
 
-/* ****************************************************************** */
-/* Acha o enderecamento do radio ************************************ */
+// ------------------------------------------------------------------- //
+// ------------------------------ RADIO ------------------------------ //
 
 uint8_t get_node_addr( void ){
    //Modo tosco que foi o primeiro que eu pensei.
@@ -213,8 +200,8 @@ uint8_t get_node_addr( void ){
 
 }
 
-/* ****************************************************************** */
-/* Pisca a luz de TimeBlink em Timeblink  *************************** */
+// ------------------------------------------------------------------- //
+// ------------------------------ LED -------------------------------- //
 
 void blinka (void) {
   uint32_t blinker;
@@ -233,8 +220,8 @@ void blinka (void) {
 
 }
 
-/* ****************************************************************** */
-/* Le a tensao da bateria ******************************************* */
+// ------------------------------------------------------------------- //
+// ------------------------------ BATERIA ---------------------------- // 
 
 uint16_t get_volt_bat ( void ){
   //Solução inicial.
@@ -256,8 +243,8 @@ uint16_t get_volt_bat ( void ){
 //  return volt;
 }
 
-/* ****************************************************************** */
-/* ENCODERS  ******************************************************** */
+// ------------------------------------------------------------------- //
+// ------------------------------ ENCODERS  -------------------------- //
 
 void encoderA() {
   Serial.print ("Contagem Encoder A: ");
@@ -270,9 +257,8 @@ void encoderB() {
   Serial.println(count_enc_b++);
 }
 
-
-/* ****************************************************************** */
-/* Ponte H  ********************************************************* */
+// ------------------------------------------------------------------- //
+// ------------------------------ Ponte H ---------------------------- //  
 //Seta o status do motor, no caso ajusta a ponte H, pwm...
 void set_motor_status( uint32_t state) {
     
