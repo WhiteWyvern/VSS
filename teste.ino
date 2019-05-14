@@ -102,16 +102,18 @@ typedef struct {
 // ------------------------------------------------------------------- //
 //------------------------- VARIAVEIS GLOBAIS ------------------------ //
 
-TasksTCtr tasks;		            //Contagem de tempo para execução de tarefas.
+TasksTCtr tasks;		                       //Contagem de tempo para execução de tarefas.
 uint16_t count_enc_a = 0;
 uint16_t count_enc_b = 0;
 
-TMotCtrl motor;                 //Variavel global que contra o motor.
+TMotCtrl motor;                            //Variavel global que contra o motor.
 
 //Parte da inicializacao do radio.
-RF24 radio(RADIO_CE, RADIO_CS);  // Instância do rádio.
-RF24Network network(radio);      // Instância da rede.
-TRadioBuf rx_buffer, tx_buffer;  // Buffers para mensagens (Rx & Tx). 
+RF24        radio   (RADIO_CE, RADIO_CS);  // Instância do rádio.
+RF24Network network (radio);               // Instância da rede.
+TRadioBuf   rx_buffer, tx_buffer;          // Buffers para mensagens (Rx & Tx). 
+
+bool rotation_FLAG = 0;
 
 
 // ------------------------------------------------------------------- //
@@ -128,7 +130,7 @@ void     encoderA               ( void );
 void     encoderB               ( void );
 void     task_radio_Rx          ( void );
 void     task_radio_Tx          ( void );
-void     set_rotation           ( uint16_t );
+void     set_rotation           ( int16_t );
 void     set_motor_status       ( uint32_t );
 void     set_speed              ( uint32_t );
 void     flush_radio_buffer     ( TRadioBuf& );
@@ -385,7 +387,7 @@ uint32_t get_speed ( void ) {
   if (!is_motor_locked()){
     //verificar se em 1 segundo o encoder passa por speedA e speedB furos.
     speedA = count_enc_a;
-    speedB = count_enc_b
+    speedB = count_enc_b;
     delay(1000);
     speedA = (count_enc_a - speed)*dist_ticks;
     speedB = (count_enc_b - speed)*dist_ticks;
@@ -398,19 +400,38 @@ uint32_t get_speed ( void ) {
 
     //Caso o motor eseteja travado, a velocidade e zero.
   } else
-      speed = 0;
 
   return speed;
 }
 
-void set_rotation ( uint16_t ) {
-  uint32_t speed = 00;
+//rotaciona o robo.
+void set_rotation ( int16_t rotation ) {
 
+  uint32_t speed = 0 ;
+  uint16_t deg = (uint16_t)(rotation & 0x3FF)%360;
+  uint8_t tks = (uint8_t)((deg * 10) / 75);          // Furos do motor que serão contados (7,5° por furo)
+
+  // Ajusta ângulo para múltiplo de 7,5°
+  deg = (uint16_t)((tks * 75) / 10);
+
+  //Gira para a esquerda.
+  if (rotation > 0){
+    rotation_FLAG = 1;
+ 
+  //Gira para a direita.
+  } else if (rotation < 0) {
+    rotation_FLAG = 1
+ 
+  //Nao gira.
+  } else 
+    rotation_FLAG = 0;
+
+  if (rotation_FLAG)
     set_speed(speed);
 }
 
 bool is_rotating( void ) {
-
+    return rotation_FLAG;
 }
 
 // ------------------------------------------------------------------- //
