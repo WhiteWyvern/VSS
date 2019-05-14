@@ -71,7 +71,7 @@
 typedef struct {
   uint32_t last_10ms   = 0;      // Controle das tarefas executadas a cada 10ms
   uint32_t last_100ms  = 0;      // Controle das tarefas executadas a cada 100ms
-  uint32_t last_1000ms = 0;      // Controle das tarefas executadas a cada 1000ms
+  uint32_t last_1min   = 0;      // Controle das tarefas executadas a cada 1000ms
 } TasksTCtr;
 
 typedef union {
@@ -124,7 +124,7 @@ bool rotation_FLAG = 0;
 
 void     tasks_10ms             ( void );
 void     tasks_100ms            ( void );
-void     tasks_1000ms           ( void );
+void     tasks_1min             ( void );
 void     blinka                 ( void );
 void     encoderA               ( void );
 void     encoderB               ( void );
@@ -231,11 +231,16 @@ void tasks_100ms( void ) {
 }
 
 // Tarefas que devem ser executadas em intervalos de 1000ms
-void tasks_1000ms( void ) {
+void tasks_1min( void ) {
 
-  if( (millis() - tasks.last_1000ms) > 1000 ){
-    tasks.last_1000ms = millis();
-  
+  if( (millis() - tasks.last_1min) > 60000 ){
+    tasks.last_1min = millis();
+
+    // Caso a bateria esteja fraca, desliga o robo.
+    if (get_volt_bat() < 6000){
+
+    }
+
   }
 }
 
@@ -336,7 +341,7 @@ uint32_t get_motor_status( void ){
 //Verifica se está em freio elétrico.
 bool is_motor_locked( uint8_t ident){
 
-  ident <<= 4;
+  ident = ident << 4;
   
   uint8_t mask1 = 00000101;
   uint8_t mask2 = 00001010;
