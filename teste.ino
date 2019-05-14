@@ -341,7 +341,7 @@ uint32_t get_motor_status( void ){
 //Verifica se está em freio elétrico.
 bool is_motor_locked( uint8_t ident){
 
-  ident = ident << 4;
+  ident = ident >> 4;
   
   uint8_t mask1 = 00000101;
   uint8_t mask2 = 00001010;
@@ -383,38 +383,46 @@ uint32_t get_speed ( void ) {
 
   uint16_t speedA;
   uint16_t speedB;
-  uint32_t speed;
+  uint32_t speed  = 0;
+  uint16_t timeMM = 0;
 
   //Calcula uma constante de quando o robo anda por furo na roda.
   uint32_t dist_ticks = 3.14*WHEEL_DIAM/WHEEL_TICKS;
 
   //Faz a verificacao e os ajustes para acertar a velocidade.
   if (!is_motor_locked()){
-    //verificar se em 1 segundo o encoder passa por speedA e speedB furos.
+    //verificar se em dado tempo encoder passa por speedA e speedB furos.
     speedA = count_enc_a;
     speedB = count_enc_b;
-    delay(1000);
-    speedA = (count_enc_a - speed)*dist_ticks;
-    speedB = (count_enc_b - speed)*dist_ticks;
+	  
+    //Pega um tempo para calcular a velocidade do robo, nao e a forma mais eficiente,
+    //pois o tempo e insuficiente
+    timeMM = millis();	  
+    delay(100);
+    timeMM = millis() - time;
+	  
+    //Calcula a velocidade em cada motor.
+    speedA = ((count_enc_a - speed)*dist_ticks)/timeMM;
+    speedB = ((count_enc_b - speed)*dist_ticks)/timeMM;
+
 
     //Coloca as velocidades dos dois motores em uma mesma variavel
-    //0-15 bits: A e 16-31 bits: B 
+    //0-15 bits: B e 16-31 bits: A 
     speed = speedA;
     speed = speed << 16;
     speed += speedB;
 
-    //Caso o motor eseteja travado, a velocidade e zero.
   } else
-
-  return speed;
+  	//Caso o motor eseteja travado, a velocidade e zero.
+  	return speed;
 }
 
 //rotaciona o robo.
 void set_rotation ( int16_t rotation ) {
 
   uint32_t speed = 0 ;
-  uint16_t deg = (uint16_t)(rotation & 0x3FF)%360;
-  uint8_t tks = (uint8_t)((deg * 10) / 75);          // Furos do motor que serão contados (7,5° por furo)
+  uint16_t deg   = (uint16_t)(rotation & 0x3FF)%360;
+  uint8_t tks    = (uint8_t) ((deg * 10) / 75);          // Furos do motor que serão contados (7,5° por furo)
 
   // Ajusta ângulo para múltiplo de 7,5°
   deg = (uint16_t)((tks * 75) / 10);
