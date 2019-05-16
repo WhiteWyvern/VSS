@@ -113,9 +113,11 @@ RF24        radio   (RADIO_CE, RADIO_CS);  // Instância do rádio.
 RF24Network network (radio);               // Instância da rede.
 TRadioBuf   rx_buffer, tx_buffer;          // Buffers para mensagens (Rx & Tx). 
 
-bool rotation_FLAG = 0;
+bool rotation_FLAG;
 
+uint8_t netw_channel;                      // Canal de rádio da rede
 
+uint16_t  base_node, this_node;            // End. do nó remoto (base) e deste nó
 // ------------------------------------------------------------------- //
 // ---------------------- SUMARIO DAS FUNCOES ------------------------ //
 
@@ -200,6 +202,9 @@ void setup() {
   flush_radio_buffer( &rx_buffer );
   flush_radio_buffer( &tx_buffer );
 
+  rotation_FLAG = 0;
+  count_enc_a = 0;
+  count_enc_b = 0;
 }
 
 //Main loop, o que o robo fica fazendo "pra sempre".
@@ -230,14 +235,14 @@ void tasks_100ms( void ) {
     }
 }
 
-// Tarefas que devem ser executadas em intervalos de 1000ms
+// Tarefas que devem ser executadas em intervalos de 1m
 void tasks_1min( void ) {
 
   if( (millis() - tasks.last_1min) > 60000 ){
     tasks.last_1min = millis();
 
     // Caso a bateria esteja fraca, desliga o robo.
-    if (get_volt_bat() < 6000){
+    if (get_volt_bat() < DEAD_BAT){
 
     }
 
@@ -272,6 +277,8 @@ void blinka (void) {
 uint16_t get_volt_bat ( void ){
   int16_t sensorValue = analogRead(VOLT_BAT);
   uint16_t volt = ((sensorValue*1.1/1023.0)*10000.0);
+  Serial.print("voltagem: ");
+  Serial.println(volt);
   return volt;
 }
 
@@ -346,14 +353,17 @@ bool is_motor_locked( uint8_t ident){
   uint8_t mask1 = 00000101;
   uint8_t mask2 = 00001010;
 
-  if ((ident == mask1) || (ident == mask2))
+  if ((ident == mask1) || (ident == mask2)) {
+    Serial.print("ponte h destravada");
     return 0;
+  }
+  Serial.print("ponte h travada");
   return 1;
 }
 
 uint8_t set_pwm_max( void ){
   uint8_t pwm;
-  uint16_t tension = uint16_t get_volt_bat();
+  uint16_t tension = get_volt_bat();
   
   //O PWM tem que ser max caso ele esteja em 5v ou menos, sendo assim:
   if (tension < PWM_MAX)
@@ -383,14 +393,14 @@ uint32_t get_speed ( void ) {
 
   uint16_t speedA;
   uint16_t speedB;
-  uint32_t speed  = 0;
+  uint32_t speedi  = 0;
   uint16_t timeMM = 0;
 
   //Calcula uma constante de quando o robo anda por furo na roda.
   uint32_t dist_ticks = 3.14*WHEEL_DIAM/WHEEL_TICKS;
 
   //Faz a verificacao e os ajustes para acertar a velocidade.
-  if (!is_motor_locked()){
+  if (!is_motor_locked((uint8_t)(motor.config.dir_motor_A)) && !is_motor_locked((uint8_t)(motor.config.dir_motor_B))){
     //verificar se em dado tempo encoder passa por speedA e speedB furos.
     speedA = count_enc_a;
     speedB = count_enc_b;
@@ -398,23 +408,24 @@ uint32_t get_speed ( void ) {
     //Pega um tempo para calcular a velocidade do robo, nao e a forma mais eficiente,
     //pois o tempo e insuficiente
     timeMM = millis();	  
+    count_enc_a = 0;
+    count_enc_b = 0;
     delay(100);
-    timeMM = millis() - time;
 	  
     //Calcula a velocidade em cada motor.
-    speedA = ((count_enc_a - speed)*dist_ticks)/timeMM;
-    speedB = ((count_enc_b - speed)*dist_ticks)/timeMM;
+    speedA = ((count_enc_a - speedi)*dist_ticks)/timeMM;
+    speedB = ((count_enc_b - speedi)*dist_ticks)/timeMM;
 
 
     //Coloca as velocidades dos dois motores em uma mesma variavel
     //0-15 bits: B e 16-31 bits: A 
-    speed = speedA;
-    speed = speed << 16;
-    speed += speedB;
+    speedi = speedA;
+    speedi = speedi << 16;
+    speedi += speedB;
 
   } else
   	//Caso o motor eseteja travado, a velocidade e zero.
-  	return speed;
+  	return speedi;
 }
 
 //rotaciona o robo.
@@ -430,11 +441,11 @@ void set_rotation ( int16_t rotation ) {
   //Gira para a esquerda.
   if (rotation > 0){
     rotation_FLAG = 1;
- 	set_speed();
+ 	//set_speed();
   //Gira para a direita.
   } else if (rotation < 0) {
-    rotation_FLAG = 1
-    set_speed();
+    rotation_FLAG = 1;
+    //set_speed();
  
   //Nao gira.
   } else 
@@ -459,11 +470,11 @@ bool is_rotating( void ) {
 uint8_t get_node_addr( void ){
    if( (RADIO_A0 == HIGH) && (RADIO_A1 == HIGH) )
     return 0;
-   if( (RADIO_A0 == HIGH) && (RADIO_A1 == HIGH) )
+   if( (RADIO_A0 == HIGH) && (RADIO_A1 == LOW) )
     return 1;
-   if( (RADIO_A0 == HIGH) && (RADIO_A1 == HIGH) )
+   if( (RADIO_A0 == LOW) && (RADIO_A1 == HIGH) )
     return 2;
-   if( (RADIO_A0 == HIGH) && (RADIO_A1 == HIGH) )
+   if( (RADIO_A0 == LOW) && (RADIO_A1 == LOW) )
     return 3;
 }
 
@@ -503,7 +514,7 @@ void dispatch_msgs( void ){
   switch ( msg.type ){
 
     // Leitura do endereço do nó
-    case 'A':   get_node_addr( true ); 
+    case 'A':   get_node_addr(); 
     break;
 
     // Ajusta curso (rotação, sentido e velocidade)
@@ -529,24 +540,24 @@ void dispatch_msgs( void ){
     case 'M' :  if( is_rotating() )
       write_msg_radio_buffer( &rx_buffer, &msg );
       else if( msg.data > 0xFFFFF ) 
-        get_motor_status( true );
+        get_motor_status( );
       else {
-        mov.config.ctr_pid_en = 0;
-        set_motor_status( msg.data );
+        //mov.config.ctr_pid_en = 0;
+        //set_motor_status( msg.data );
       }
     break;
 
       // Leitura da tensão da bateria
-    case 'V':   get_volt_bat( true ); 
+    case 'V':   get_volt_bat(); 
     break;
 
     // Reinicio o Arduino por SW
-    case 'Z': soft_reset();
-    break;
+    //case 'Z': soft_reset();
+    //break;
         
     // Altera o canal de rádio do robô
-    case 'N': set_network_channel( (uint8_t)msg.data );
-    break;
+    //case 'N': set_network_channel( (uint8_t)(msg.data) );
+    //break;
 
     // Mensagens com tipos desconhecidos são devolvidas à base
     default: write_msg_radio_buffer( &tx_buffer, &msg );
@@ -555,7 +566,7 @@ void dispatch_msgs( void ){
 }
 
 //Coloca uma mensagem no buffer interno do sistema.
-int8_t write_msg_radio_buffer( TRadioBuf&, TRadioMsg& ){
+int8_t write_msg_radio_buffer( TRadioBuf *buf, TRadioMsg *msg ){
   //Verifica se o buffer esta cheio.
   if( buf->tam == TAM_BUFFER ) 
     return -1;
@@ -574,7 +585,7 @@ int8_t write_msg_radio_buffer( TRadioBuf&, TRadioMsg& ){
   return ( TAM_BUFFER - buf->tam );        // Retorna: espaço restante
 }
 
-int8_t read_msg_radio_buffer( TRadioBuf&, TRadioMsg& ){
+int8_t read_msg_radio_buffer( TRadioBuf *buf, TRadioMsg *msg ){
   
   //Verifica se o buffer nao esta vazio.
   if( buf->tam == 0 ) 
@@ -595,7 +606,7 @@ int8_t read_msg_radio_buffer( TRadioBuf&, TRadioMsg& ){
 }
 
 //Reinicia o buffer, setando tudo em 0.
-void flush_radio_buffer( TRadioBuf& ){
+void flush_radio_buffer( TRadioBuf *buf ){
   buf->head   = 0;
   buf->tail   = 0;
   buf->tam    = 0;
@@ -603,14 +614,14 @@ void flush_radio_buffer( TRadioBuf& ){
 }
 
 //Verifica se o buffer esta cheio.
-bool is_radio_buffer_full( TRadioBuf& ){
+bool is_radio_buffer_full( TRadioBuf *buf ){
   if (buf->tam == TAM_BUFFER)
     return 1;
   return 0;
 }
 
 //verifica se o buffer esta vazio
-bool is_radio_buffer_empty( TRadioBuf& ){
+bool is_radio_buffer_empty( TRadioBuf *buf ){
   if (buf->tam == 0)
     return 1;
   return 0;
