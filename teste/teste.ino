@@ -1,3 +1,5 @@
+//NUMERO MAGICO: 2678018048.
+
   
 #include <avr/pgmspace.h>
 #include <RF24Network.h>
@@ -118,6 +120,10 @@ bool rotation_FLAG;
 uint8_t netw_channel;                      // Canal de rádio da rede
 
 uint16_t  base_node, this_node;            // End. do nó remoto (base) e deste nó
+
+uint8_t  recv;
+uint32_t buffer;
+uint32_t message;
 // ------------------------------------------------------------------- //
 // ---------------------- SUMARIO DAS FUNCOES ------------------------ //
 
@@ -144,6 +150,7 @@ uint8_t  get_node_addr          ( void );
 uint8_t  set_pwm_max            ( void );
 int8_t   write_msg_radio_buffer ( TRadioBuf&, TRadioMsg& );
 int8_t   read_msg_radio_buffer  ( TRadioBuf&, TRadioMsg& );
+
 uint16_t get_volt_bat           ( void );
 uint32_t get_motor_status       ( void );
 uint32_t get_speed              ( void );
@@ -205,11 +212,16 @@ void setup() {
   rotation_FLAG = 0;
   count_enc_a = 0;
   count_enc_b = 0;
+
+  motor.status = 2678018048;
+
+  set_motor_status(2678018048);
+
 }
 
 //Main loop, o que o robo fica fazendo "pra sempre".
 void loop() {
-
+  tasks_100ms();
 }
 
 
@@ -231,8 +243,26 @@ void tasks_10ms( void ) {
 void tasks_100ms( void ) {
 
     if( (millis() - tasks.last_100ms) > 100 ){
-        tasks.last_100ms = millis();       
+        tasks.last_100ms = millis();
+     if( Serial.available() ) {
+              buffer = 0;
+          
+          while( Serial.available() ){
+          
+              // Lê caracteres até receber 'quebra de linha'
+              if( (recv = Serial.read()) != '\n' ){
+                  buffer  = buffer << 4;
+                  buffer |= asc2hex(recv);
+              }
+              else {
+                  // Se buffer completo => altera estado dos motores
+                  set_motor_status(buffer);
+              }
+          }
     }
+    //set_motor_status(message); 
+    }
+    get_speed();
 }
 
 // Tarefas que devem ser executadas em intervalos de 1m
@@ -277,8 +307,8 @@ void blinka (void) {
 uint16_t get_volt_bat ( void ){
   int16_t sensorValue = analogRead(VOLT_BAT);
   uint16_t volt = ((sensorValue*1.1/1023.0)*10000.0);
-  Serial.print("voltagem: ");
-  Serial.println(volt);
+ // Serial.print("voltagem: ");
+  //Serial.println(volt);
   return volt;
 }
 
@@ -291,15 +321,16 @@ uint16_t get_volt_bat ( void ){
 
 void encoderA() {
   //Serial.print ("Contagem Encoder A: ");
+  //Serial.println(count_enc_a++);
   count_enc_a++;
 }
 
 
 void encoderB() {
   //Serial.print ("Contagem Encoder B: ");
+  //Serial.println(count_enc_b++);
   count_enc_b++;
 }
-
 // ------------------------------------------------------------------- //
 // ------------------------------ Ponte H ---------------------------- //  
 
@@ -346,19 +377,12 @@ uint32_t get_motor_status( void ){
 }
 
 //Verifica se está em freio elétrico.
-bool is_motor_locked( uint8_t ident){
+bool is_motor_locked( uint8_t mtr){
+    
+    if( mtr ) 
+         return !(bitRead(motor.config.dir_motor_B,0) ^ bitRead(motor.config.dir_motor_B,1));
+    else return !(bitRead(motor.config.dir_motor_A,0) ^ bitRead(motor.config.dir_motor_A,1));
 
-  ident = ident >> 4;
-  
-  uint8_t mask1 = 00000101;
-  uint8_t mask2 = 00001010;
-
-  if ((ident == mask1) || (ident == mask2)) {
-    Serial.print("ponte h destravada");
-    return 0;
-  }
-  Serial.print("ponte h travada");
-  return 1;
 }
 
 uint8_t set_pwm_max( void ){
@@ -371,7 +395,7 @@ uint8_t set_pwm_max( void ){
 
   //Com o PWM entre 5v e 8v, devemos achar a "porcentagem" em que ele deve
   //ficar ligado, dado um periodo.
-  pwm = PWM_MAX/tension;
+  pwm = PWM_MAX*16000/tension;
 
   return pwm;
  }
@@ -385,6 +409,7 @@ uint8_t set_pwm_max( void ){
 
 //Seta as velocidades dos motores.
 void set_speed ( uint32_t data ) {
+
 
 }
 
@@ -400,30 +425,32 @@ uint32_t get_speed ( void ) {
   uint32_t dist_ticks = 3.14*WHEEL_DIAM/WHEEL_TICKS;
 
   //Faz a verificacao e os ajustes para acertar a velocidade.
-  if (!is_motor_locked((uint8_t)(motor.config.dir_motor_A)) && !is_motor_locked((uint8_t)(motor.config.dir_motor_B))){
+  //if (!is_motor_locked((uint8_t)(motor.config.dir_motor_A)) && !is_motor_locked((uint8_t)(motor.config.dir_motor_B))){
     //verificar se em dado tempo encoder passa por speedA e speedB furos.
     speedA = count_enc_a;
     speedB = count_enc_b;
 	  
     //Pega um tempo para calcular a velocidade do robo, nao e a forma mais eficiente,
     //pois o tempo e insuficiente
-    timeMM = millis();	  
-    count_enc_a = 0;
-    count_enc_b = 0;
-    delay(100);
-	  
+  	  
+    timeMM = millis();    
+    while( (timeMM - millis()) < 1000){
     //Calcula a velocidade em cada motor.
-    speedA = ((count_enc_a - speedi)*dist_ticks)/timeMM;
-    speedB = ((count_enc_b - speedi)*dist_ticks)/timeMM;
 
+    }
 
+    speedA = ((count_enc_a - speedA)*dist_ticks)/timeMM;
+    speedB = ((count_enc_b - speedB)*dist_ticks)/timeMM;
+    Serial.println(speedA);
+    Serial.println(speedB);
+    
     //Coloca as velocidades dos dois motores em uma mesma variavel
     //0-15 bits: B e 16-31 bits: A 
     speedi = speedA;
     speedi = speedi << 16;
     speedi += speedB;
 
-  } else
+  //} else
   	//Caso o motor eseteja travado, a velocidade e zero.
   	return speedi;
 }
@@ -468,13 +495,13 @@ bool is_rotating( void ) {
 
 //Acha e devolve de forma "fisica" o ID do robo que sera utilizado pelo radio.
 uint8_t get_node_addr( void ){
-   if( (RADIO_A0 == HIGH) && (RADIO_A1 == HIGH) )
+   if( (digitalRead(RADIO_A0) == HIGH) && (digitalRead(RADIO_A1) == HIGH) )
     return 0;
-   if( (RADIO_A0 == HIGH) && (RADIO_A1 == LOW) )
+   if( (digitalRead(RADIO_A0) == HIGH) && (digitalRead(RADIO_A1) == LOW) )
     return 1;
-   if( (RADIO_A0 == LOW) && (RADIO_A1 == HIGH) )
+   if( (digitalRead(RADIO_A0) == LOW) && (digitalRead(RADIO_A1) == HIGH) )
     return 2;
-   if( (RADIO_A0 == LOW) && (RADIO_A1 == LOW) )
+   if( (digitalRead(RADIO_A0) == LOW) && (digitalRead(RADIO_A1) == LOW) )
     return 3;
 }
 
